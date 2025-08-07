@@ -145,6 +145,10 @@ class Sakamoto:
 
         # object
         self.objects_list = objects_state()
+        
+        # obstacle
+        self.obstacle_list = []
+        self.obstacle_list.append(self.box)
 
         # DP_table
         self.dp_table = None
@@ -472,7 +476,9 @@ class Sakamoto:
         cand1_pos = self.objects_list.cdmodel_list[j].pos + self.align_distance * np.array(
             [np.cos(rad_t), np.sin(rad_t), 0])
         cand2_pos = self.objects_list.cdmodel_list[j].pos + self.align_distance * np.array(
-            [np.cos(-rad_t), np.sin(-rad_t), 0])
+            [np.cos(rad_t+np.pi), np.sin(rad_t+np.pi), 0])
+        # mcm.mgm.gen_sphere(pos=cand1_pos, radius=0.007, rgb=np.array([1.0, 0.0, 0.0]), alpha=0.8).attach_to(self.base)
+        # mcm.mgm.gen_sphere(pos=cand2_pos, radius=0.007, rgb=np.array([0.0, 0.0, 1.0]), alpha=0.8).attach_to(self.base)
         if np.linalg.norm(cand1_pos - self.objects_list.cdmodel_list[i].pos) < np.linalg.norm(
                 cand2_pos - self.objects_list.cdmodel_list[i].pos):
             nexttarget_pos = cand1_pos
@@ -514,7 +520,7 @@ class Sakamoto:
         candidate_list = [(n,) for n in index_list] + [comb for comb in comb_list]
         return candidate_list
 
-    def PickandRecovMotion(self, grasp):
+    def PickandRecovMotion(self, grasp,toggle_dbg=False):
         rotvec = np.array([0, 0, -grasp[1]])
         rot = Rotation.from_rotvec(rotvec)
         rotmat = rot.as_matrix()
@@ -526,51 +532,74 @@ class Sakamoto:
             [0, -1, 0],
             [0, 0, -1]
         ])
-        orientation_rgt_moveto = np.dot(picking_pose, rotmat)
+        picking_pose1 = np.array([
+            [1, 0, 0],
+            [0, -1, 0],
+            [0, 0, -1]
+        ])
+        picking_pose2 = np.array([
+            [-1, 0, 0],
+            [0, 1, 0],
+            [0, 0, -1]
+        ])
+        picking_pose_list= [picking_pose1, picking_pose2]
+        use_rrt_list = [False, True]
+        for use_rrt in use_rrt_list:
+            print(f"-----use_rrt:{use_rrt}-----")
+            for picking_pose in picking_pose_list:
+                orientation_rgt_moveto = np.dot(picking_pose, rotmat)
 
-        print("-----approach_to_objects_motion Planning-----")
-        approach_to_objects_motion = self.adplaner.gen_approach(goal_tcp_pos=pos_rgt_moveto,
-                                                                goal_tcp_rotmat=orientation_rgt_moveto,
-                                                                start_jnt_values=self.jnt_values_above_box,
-                                                                linear_direction=orientation_rgt_moveto[:, 2],
-                                                                linear_distance=0.03, use_rrt=False
-                                                                )
-        if approach_to_objects_motion is None:
-            print("cannot calc approach_to_objects_motion")
+                print("-----approach_to_objects_motion Planning-----")
+                approach_to_objects_motion = self.adplaner.gen_approach(goal_tcp_pos=pos_rgt_moveto,
+                                                                        goal_tcp_rotmat=orientation_rgt_moveto,
+                                                                        start_jnt_values=self.jnt_values_above_box,
+                                                                        linear_direction=orientation_rgt_moveto[:, 2],
+                                                                        linear_distance=0.03, use_rrt=use_rrt,toggle_dbg=toggle_dbg,
+                                                                        obstacle_list= self.obstacle_list
+                                                                        )
+                if approach_to_objects_motion is None:
+                    print("cannot calc approach_to_objects_motion")
+                    continue
+
+                close_gripper_motion = MotionData(self.robot)
+                close_ev_list = []
+                close_jnts_list = []
+                # print(f"approach_to_objects_motion.jv_list():{approach_to_objects_motion.jv_list}")
+                for i in range(85):
+                    close_ev_list.append(0.085 - (i * 0.085 / 85))
+                    close_jnts_list.append(approach_to_objects_motion.jv_list[-1])
+                close_gripper_motion.extend(close_jnts_list, close_ev_list)
+                
+                print("-----return_to_start_motion Planning-----")
+                return_to_start_motion = self.adplaner.gen_depart_from_given_conf(start_jnt_values=approach_to_objects_motion.jv_list[-1],
+                                                                    end_jnt_values= self.jnt_values_above_box,
+                                                                    linear_direction=-orientation_rgt_moveto[:, 2],
+                                                                    linear_distance=.03,
+                                                                    ee_values=close_gripper_motion.ev_list[-1],
+                                                                    use_rrt=use_rrt,
+                                                                    obstacle_list= self.obstacle_list,
+                                                                    toggle_dbg=toggle_dbg)
+                if return_to_start_motion is None:
+                    print("cannot calc return_to_start_motion")
+                    continue
+
+                open_gripper_motion = MotionData(self.robot)
+                open_ev_list = []
+                open_jnts_list = []
+                for i in range(85):
+                    open_ev_list.append(i * 0.085 / 85)
+                    open_jnts_list.append(return_to_start_motion.jv_list[-1])
+                open_gripper_motion.extend(open_jnts_list, open_ev_list)
+                
+                if approach_to_objects_motion is not None or close_gripper_motion is not None or return_to_start_motion is not None or open_gripper_motion is not None:
+                    print("-----Pick and Recover Motion Planning Succeeded-----")
+                    return approach_to_objects_motion + close_gripper_motion + return_to_start_motion + open_gripper_motion
+
+                
+        if approach_to_objects_motion is None or close_gripper_motion is None or return_to_start_motion is None or open_gripper_motion is None:
+            print("failed to plan the pick and recover motions")
             return None
-
-        close_gripper_motion = MotionData(self.robot)
-        close_ev_list = []
-        close_jnts_list = []
-        # print(f"approach_to_objects_motion.jv_list():{approach_to_objects_motion.jv_list}")
-        for i in range(85):
-            close_ev_list.append(0.085 - (i * 0.085 / 85))
-            close_jnts_list.append(approach_to_objects_motion.jv_list[-1])
-        close_gripper_motion.extend(close_jnts_list, close_ev_list)
-
-        return_to_start_motion = self.adplaner.gen_depart(start_tcp_pos=pos_rgt_moveto,
-                                                          start_tcp_rotmat=orientation_rgt_moveto,
-                                                          linear_direction=-orientation_rgt_moveto[:, 2],
-                                                          end_jnt_values=self.jnt_values_above_box,
-                                                          linear_distance=.03,
-                                                          use_rrt=False)
-        if return_to_start_motion is None:
-            print("cannot calc return_to_start_motion")
-            return None
-
-        open_gripper_motion = MotionData(self.robot)
-        open_ev_list = []
-        open_jnts_list = []
-        for i in range(85):
-            open_ev_list.append(i * 0.085 / 85)
-            open_jnts_list.append(return_to_start_motion.jv_list[-1])
-        open_gripper_motion.extend(open_jnts_list, open_ev_list)
-
-        if return_to_start_motion is None:
-            print("cannot calc open_gripper_motion")
-            return None
-
-        return approach_to_objects_motion + close_gripper_motion + return_to_start_motion + open_gripper_motion
+      
 
     def PushandRecovMotion(self, i, j):
         """path list of pushing"""

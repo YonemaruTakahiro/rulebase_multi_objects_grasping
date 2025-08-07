@@ -1,3 +1,7 @@
+import sys
+import os
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 from wrs import wd, rm, ur3d, rrtc, mgm, mcm
 from wrs.modeling import collision_model as cm
 import wrs.modeling.constant as const
@@ -35,7 +39,7 @@ PUSHER_THICKNESS = 0.02
 objheight = 0.02
 r_th = 0.08
 d_th = 0.4
-theta_th = np.pi / 2
+theta_th = 2*np.pi / 3
 alpha = np.pi / 3
 divnum = 8
 pushing_Z = 0.015 # base is table
@@ -54,7 +58,7 @@ if __name__ == "__main__":
     robot.use_rgt()
     robot.change_jaw_width(jaw_width=0.08)
     # robot.gen_meshmodel(toggle_jnt_frames=True).attach_to(base)
-    init_tgt_pos = np.array([BOX_POS[0], BOX_POS[1], BOX_POS[2] + 0.3])
+    init_tgt_pos = np.array([BOX_POS[0], BOX_POS[1], BOX_POS[2] + 0.15])
     init_tgt_rotmat = rm.rotmat_from_euler(rm.pi, 0, 0)
     mcm.mgm.gen_frame(pos=init_tgt_pos, rotmat=init_tgt_rotmat).attach_to(base)
     jnt_values_above_box = robot.ik(tgt_pos=init_tgt_pos, tgt_rotmat=init_tgt_rotmat)
@@ -63,16 +67,15 @@ if __name__ == "__main__":
     robot.gen_meshmodel().attach_to(base)
 
     # box
-    box = cm.CollisionModel("/home/yonemaru/PycharmProjects/wrs/yonemaru/objects/yonemaru_box.stl",
-                            cdprim_type=const.CDPrimType.CAPSULE)
+    box = cm.CollisionModel("/home/yonemaru/PycharmProjects/wrs/yonemaru/objects/yonemaru_box.stl")
     boxrot = rm.rotmat_from_axangle([0, 0, 1], np.pi / 2)
     boxmat4 = rm.homomat_from_posrot(pos=BOX_POS, rotmat=boxrot)
     box.homomat = boxmat4
     box.rgba = np.array([0.87, 0.65, 0.53, 1])
     box.attach_to(base)
     # obj_3dprinted for picking
-    obj_3dprinted = cm.CollisionModel("/home/yonemaru/PycharmProjects/wrs/yonemaru/objects/yonemaru_object1.stl",
-                                      cdprim_type=const.CDPrimType.CAPSULE)
+    obj_3dprinted = cm.CollisionModel("/home/yonemaru/PycharmProjects/wrs/yonemaru/objects/yonemaru_object1.stl")
+    #obstacle
 
     sakamoto = Sakamoto(base=base, robot=robot, table_z=TABLE_Z, box=box, box_pos=BOX_POS, printed_obj=obj_3dprinted,
                         objheight=objheight,
@@ -86,8 +89,8 @@ if __name__ == "__main__":
                         divnum=divnum,
                         pushing_Z=pushing_Z, pusher_width=pusher_width)
 
-    x_range = (-0.15, 0.15)
-    y_range = (-0.2, 0.2)
+    x_range = (-0.1, 0.1)
+    y_range = (-0.15, 0.15)
     sakamoto.placeRandomRoundly(num=4, x_range=x_range, y_range=y_range, liftheight=0.03)
 
     obscmlist = [box] + sakamoto.objects_list.cdmodel_list
@@ -121,7 +124,7 @@ if __name__ == "__main__":
             if method[1] == "double":
                 i, j = method[0]
                 grasp_pos = (sakamoto.objects_list.centroids[i] + sakamoto.objects_list.centroids[j]) / 2
-                grasp_pos[2] += 0.05
+                grasp_pos[2] += 0.05#物体の位置の調整が必要
                 angle = (sakamoto.objects_list.angle_list[i] + sakamoto.objects_list.angle_list[j]) / 2
                 grasp = [grasp_pos, angle, [i, j]]
                 motion_data_double_grasp = sakamoto.PickandRecovMotion(grasp)

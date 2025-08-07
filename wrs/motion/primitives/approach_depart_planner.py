@@ -567,7 +567,7 @@ class ADPlanner(object):
                                                                            end_jnt_values=linear_app.jv_list[0],
                                                                            obstacle_list=obstacle_list + object_list,
                                                                            ee_values=ee_values,
-                                                                           toggle_dbg=toggle_dbg)
+                                                                           )
         if start2app is None:
             print("ADPlanner: Cannot plan the approach rrt motion section of approach with given conf!")
             return None
@@ -633,7 +633,7 @@ class ADPlanner(object):
                                                                          end_jnt_values=end_jnt_values,
                                                                          obstacle_list=obstacle_list + object_list,
                                                                          ee_values=ee_values,
-                                                                         toggle_dbg=toggle_dbg)
+                                                                         )
             if dep2end is None:
                 print("ADPlanner: Cannot interpolate the depart motion section of depart with given conf!")
                 return None
