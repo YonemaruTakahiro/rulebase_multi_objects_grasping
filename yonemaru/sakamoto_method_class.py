@@ -411,20 +411,20 @@ class Sakamoto:
             # mgm.gen_sphere(pos=xF, radius=0.2, rgb=np.array([0.0, 1.0, 0.0]), alpha=0.8)
             if i == len(comp_obj_list) - 1:
                 print(i, "/", len(comp_obj_list) - 1, "the last index")
-                eepos[2] += 0.01
+                eepos[2] += 0.005
                 eepos_list.append(eepos)
             else:
                 """const2-1 there are no slip between pusher and object"""
                 # todo change this value from .stl file
                 xF1 = pos + np.dot(rotmat, np.array(
-                    [self.distance_from_objcor_to_pushing_surface, -self.pusher_width / 2, 0.01]))
+                    [self.distance_from_objcor_to_pushing_surface, -self.pusher_width / 2, self.pushing_Z]))
                 xF2 = pos + np.dot(rotmat, np.array(
-                    [self.distance_from_objcor_to_pushing_surface, self.pusher_width / 2, 0.01]))
+                    [self.distance_from_objcor_to_pushing_surface, self.pusher_width / 2, self.pushing_Z]))
                 # mgm.gen_sphere(pos=xF1, radius=0.002, rgb=np.array([0.0, 1.0, 0.0]), alpha=0.8).attach_to(base)
                 # mgm.gen_sphere(pos=xF2, radius=0.002, rgb=np.array([0.0, 1.0, 0.0]), alpha=0.8).attach_to(base)
-
+                #この向きに注意
                 eF = np.dot(
-                    [[np.cos(np.pi / 2), np.sin(np.pi / 2), 0], [-np.sin(np.pi / 2), np.cos(np.pi / 2), 0], [0, 0, 1]],
+                    [[np.cos(np.pi / 2), -np.sin(np.pi / 2), 0], [np.sin(np.pi / 2), np.cos(np.pi / 2), 0], [0, 0, 1]],
                     np.array(xF2 - xF1))
                 ev = comp_obj_list[i + 1].pos - comp_obj_list[i].pos
                 # mgm.gen_arrow(spos=pos, epos=eF+pos,stick_radius=0.004, rgb=np.array([0.0, 1.0, 1.0]), alpha=0.8).attach_to(base)
@@ -433,7 +433,8 @@ class Sakamoto:
                 eF = eF / np.linalg.norm(eF)
                 ev = ev[0:2]
                 ev = ev / np.linalg.norm(ev)
-                if abs(np.dot(ev, eF)) >= np.linalg.norm(ev) / np.sqrt(1 + np.tan(self.alpha) * np.tan(self.alpha)):
+                print(f"np.dot(ev, eF):{np.dot(ev, eF)}")
+                if np.dot(ev, eF) >= np.linalg.norm(ev) / np.sqrt(1 + np.tan(self.alpha) * np.tan(self.alpha)):
                     print(i, "/", len(comp_obj_list) - 1, "2-1 is True")
                 else:
                     print(i, "/", len(comp_obj_list) - 1, "2-1 is False")
@@ -451,6 +452,7 @@ class Sakamoto:
                     r1 = r1[0:2]
                     r2 = r2[0:2]
                     lambda_F = np.cross(r2, ev) / np.cross((r2 - r1), ev)
+                    print("lambda_F", lambda_F)
                     xF = lambda_F * xF1 + (1 - lambda_F) * xF2
                     # mgm.gen_sphere(pos=xF, radius=0.002, rgb=np.array([0.0, 1.0, 0.0]), alpha=0.8).attach_to(base)
                     if 0 >= lambda_F or lambda_F >= 1:
